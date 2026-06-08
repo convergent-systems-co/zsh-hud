@@ -19,14 +19,20 @@ func NewRenderer(w io.Writer) *Renderer { return &Renderer{w: w} }
 
 // Render draws f. On the first call or when the size changes it does a full
 // redraw; otherwise it emits only cells that differ from the last frame.
+// The cursor position is repositioned only when it has changed (or on a full
+// redraw), consistent with the diff-only-what-changed contract.
 func (r *Renderer) Render(f *Frame) error {
 	var b bytes.Buffer
-	if r.last == nil || !r.last.SameSize(f) {
+	fullRedraw := r.last == nil || !r.last.SameSize(f)
+	if fullRedraw {
 		r.fullRedraw(&b, f)
 	} else {
 		r.diff(&b, f)
 	}
-	b.WriteString(cursorTo(f.CursorRow, f.CursorCol))
+	// Emit cursor position if this is a full redraw or the cursor moved.
+	if fullRedraw || r.last.CursorRow != f.CursorRow || r.last.CursorCol != f.CursorCol {
+		b.WriteString(cursorTo(f.CursorRow, f.CursorCol))
+	}
 	if _, err := r.w.Write(b.Bytes()); err != nil {
 		return err
 	}
@@ -70,5 +76,28 @@ func cloneFrame(f *Frame) *Frame {
 	return cp
 }
 
-// TEMP: replaced by the real diff in Task 4.
-func (r *Renderer) diff(b *bytes.Buffer, f *Frame) { r.fullRedraw(b, f) }
+// diff emits only cells that changed from the last frame. Each maximal run of
+// adjacent changed cells in a row is repositioned once; the terminal advances
+// the cursor as glyphs are written. The active style is reset at each run.
+func (r *Renderer) diff(b *bytes.Buffer, f *Frame) {
+	for row := 0; row < f.Rows; row++ {
+		col := 0
+		for col < f.Cols {
+			if cellsEqual(f.At(row, col), r.last.At(row, col)) {
+				col++
+				continue
+			}
+			b.WriteString(cursorTo(row, col))
+			cur := ""
+			for col < f.Cols && !cellsEqual(f.At(row, col), r.last.At(row, col)) {
+				cur = writeCell(b, f.At(row, col), cur)
+				col++
+			}
+		}
+	}
+}
+
+// cellsEqual reports whether two cells are visually identical.
+func cellsEqual(a, b engine.Cell) bool {
+	return a.Rune == b.Rune && a.Width == b.Width && a.Attrs == b.Attrs && a.FG == b.FG && a.BG == b.BG
+}
