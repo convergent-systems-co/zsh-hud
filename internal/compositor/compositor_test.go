@@ -115,3 +115,39 @@ func TestComposeNegativeOffsetTreatedAsLive(t *testing.T) {
 		t.Fatalf("cursor = (%d,%d) shown=%v, want (1,1) true", f.CursorRow, f.CursorCol, f.CursorShown)
 	}
 }
+
+func TestComposeTinyTerminalNoMiddle(t *testing.T) {
+	g := &fakeGrid{rows: 0, cols: 5, screen: nil}
+	f := Compose(2, 5, g, 0, mkCells("TOP"), mkCells("BOT")) // must not panic
+	if f.Rows != 2 {
+		t.Fatalf("rows = %d, want 2", f.Rows)
+	}
+	if got := midRow(f, 0, 5); got != "TOP  " {
+		t.Fatalf("top = %q", got)
+	}
+	if got := midRow(f, 1, 5); got != "BOT  " {
+		t.Fatalf("bottom = %q", got)
+	}
+	if f.CursorShown {
+		t.Fatal("no middle => cursor hidden")
+	}
+}
+
+func TestComposeSingleRowOnlyTopBar(t *testing.T) {
+	g := &fakeGrid{rows: 0, cols: 3}
+	f := Compose(1, 3, g, 0, mkCells("HI"), mkCells("XX")) // must not panic
+	if f.Rows != 1 {
+		t.Fatalf("rows = %d, want 1", f.Rows)
+	}
+	if got := midRow(f, 0, 3); got != "HI " {
+		t.Fatalf("row0 = %q, want 'HI '", got)
+	}
+}
+
+func TestComposeZeroRows(t *testing.T) {
+	g := &fakeGrid{rows: 0, cols: 0}
+	f := Compose(0, 0, g, 0, nil, nil) // must not panic
+	if f.Rows != 0 {
+		t.Fatalf("rows = %d, want 0", f.Rows)
+	}
+}
