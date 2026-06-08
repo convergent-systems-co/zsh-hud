@@ -4,13 +4,7 @@ package engine
 #cgo pkg-config: vterm
 #include <vterm.h>
 #include <stdlib.h>
-#include <string.h>
 
-static VTermScreenCell *new_cell() {
-	VTermScreenCell *c = malloc(sizeof(VTermScreenCell));
-	memset(c, 0, sizeof(VTermScreenCell));
-	return c;
-}
 static uint32_t cell_char0(VTermScreenCell *c) { return c->chars[0]; }
 static int      cell_width(VTermScreenCell *c) { return c->width; }
 */
@@ -19,7 +13,6 @@ import "C"
 import (
 	"fmt"
 	"runtime/cgo"
-	"unsafe"
 )
 
 // scrollback is a placeholder until Task 4 provides the real ring buffer.
@@ -67,8 +60,11 @@ func (e *Engine) Write(p []byte) (int, error) {
 	}
 	cb := C.CBytes(p)
 	defer C.free(cb)
-	n := C.vterm_input_write(e.vt, (*C.char)(cb), C.size_t(len(p)))
-	return int(n), nil
+	n := int(C.vterm_input_write(e.vt, (*C.char)(cb), C.size_t(len(p))))
+	if n < len(p) {
+		return n, fmt.Errorf("engine: vterm_input_write consumed %d of %d bytes", n, len(p))
+	}
+	return n, nil
 }
 
 // Cell returns the visible grid cell at (row, col). Out-of-range returns a zero
@@ -80,17 +76,16 @@ func (e *Engine) Cell(row, col int) Cell {
 	var pos C.VTermPos
 	pos.row = C.int(row)
 	pos.col = C.int(col)
-	cell := C.new_cell()
-	defer C.free(unsafe.Pointer(cell))
-	if C.vterm_screen_get_cell(e.screen, pos, cell) == 0 {
+	var cell C.VTermScreenCell
+	if C.vterm_screen_get_cell(e.screen, pos, &cell) == 0 {
 		return Cell{}
 	}
 	return Cell{
-		Rune:  rune(C.cell_char0(cell)),
-		Width: int(C.cell_width(cell)),
+		Rune:  rune(C.cell_char0(&cell)),
+		Width: int(C.cell_width(&cell)),
 		FG:    mapColor(&cell.fg, true),
 		BG:    mapColor(&cell.bg, false),
-		Attrs: mapAttrs(cell),
+		Attrs: mapAttrs(&cell),
 	}
 }
 

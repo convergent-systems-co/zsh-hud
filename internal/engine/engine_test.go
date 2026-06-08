@@ -32,7 +32,9 @@ func TestEngineCursorAdvances(t *testing.T) {
 	}
 	defer e.Close()
 
-	e.Write([]byte("abc"))
+	if _, err := e.Write([]byte("abc")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
 	row, col := e.CursorPos()
 	if row != 0 || col != 3 {
 		t.Fatalf("cursor = (%d,%d), want (0,3)", row, col)
@@ -47,7 +49,9 @@ func TestEngineParsesColor(t *testing.T) {
 	defer e.Close()
 
 	// SGR 32 = indexed green (palette index 2).
-	e.Write([]byte("\x1b[32mX"))
+	if _, err := e.Write([]byte("\x1b[32mX")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
 	c := e.Cell(0, 0)
 	if c.Rune != 'X' {
 		t.Fatalf("rune = %q, want X", c.Rune)

@@ -39,6 +39,9 @@ func mapColor(c *C.VTermColor, isFG bool) Color {
 	return Color{R: uint8(C.color_r(c)), G: uint8(C.color_g(c)), B: uint8(C.color_b(c))}
 }
 
+// mapAttrs extracts the character-attribute bitset from a libvterm cell.
+// Note: VTermScreenCellAttrs.underline is a 2-bit enum (VTERM_UNDERLINE_*),
+// so the shim's `!= 0` test correctly means "any underline style present".
 func mapAttrs(c *C.VTermScreenCell) Attr {
 	var a Attr
 	if C.attr_bold(c) != 0 {
