@@ -19,20 +19,18 @@ func NewRenderer(w io.Writer) *Renderer { return &Renderer{w: w} }
 
 // Render draws f. On the first call or when the size changes it does a full
 // redraw; otherwise it emits only cells that differ from the last frame.
-// The cursor position is repositioned only when it has changed (or on a full
-// redraw), consistent with the diff-only-what-changed contract.
+// The cursor is always repositioned: cell writes leave the physical cursor at
+// the end of the last written run, so we must always place it explicitly.
 func (r *Renderer) Render(f *Frame) error {
 	var b bytes.Buffer
-	fullRedraw := r.last == nil || !r.last.SameSize(f)
-	if fullRedraw {
+	if r.last == nil || !r.last.SameSize(f) {
 		r.fullRedraw(&b, f)
 	} else {
 		r.diff(&b, f)
 	}
-	// Emit cursor position if this is a full redraw or the cursor moved.
-	if fullRedraw || r.last.CursorRow != f.CursorRow || r.last.CursorCol != f.CursorCol {
-		b.WriteString(cursorTo(f.CursorRow, f.CursorCol))
-	}
+	// The cell writes above leave the physical cursor at the end of the last
+	// run, so always reposition it to the frame's cursor.
+	b.WriteString(cursorTo(f.CursorRow, f.CursorCol))
 	if _, err := r.w.Write(b.Bytes()); err != nil {
 		return err
 	}

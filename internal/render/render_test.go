@@ -60,8 +60,11 @@ func TestRendererDiffEmitsOnlyChangedCells(t *testing.T) {
 	if !strings.Contains(out, cursorTo(0, 2)) || !strings.Contains(out, "X") {
 		t.Fatalf("diff should reposition to (0,2) and emit X; got %q", out)
 	}
-	if strings.Contains(out, cursorTo(0, 0)) {
-		t.Fatalf("diff should not touch column 0; got %q", out)
+	// Only the changed cell's glyph should be emitted; unchanged glyphs must not.
+	for _, g := range []string{"a", "b", "d", "e"} {
+		if strings.Contains(out, g) {
+			t.Fatalf("diff re-emitted unchanged glyph %q; got %q", g, out)
+		}
 	}
 }
 
