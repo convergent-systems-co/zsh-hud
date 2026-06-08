@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -44,9 +45,12 @@ func run() (err error) {
 	if err != nil {
 		return fmt.Errorf("raw mode: %w", err)
 	}
+	var restoreOnce sync.Once
 	restore := func() {
-		os.Stdout.WriteString(input.DisableMouse + "\x1b[?25h\x1b[?1049l")
-		term.Restore(stdin, oldState) //nolint:errcheck — best-effort restore
+		restoreOnce.Do(func() {
+			os.Stdout.WriteString(input.DisableMouse + "\x1b[?25h\x1b[?1049l")
+			term.Restore(stdin, oldState) //nolint:errcheck — best-effort restore
+		})
 	}
 	defer restore()
 	defer func() {
@@ -86,6 +90,7 @@ func run() (err error) {
 	ptyBytes := make(chan []byte, 64)
 	stdinBytes := make(chan []byte, 64)
 	go pump(ph, ptyBytes)
+	// Note: this goroutine blocks on os.Stdin.Read and leaks until process exit (acceptable).
 	go pump(os.Stdin, stdinBytes)
 
 	sigwinch := make(chan os.Signal, 1)
@@ -94,11 +99,31 @@ func run() (err error) {
 
 	renderTick := time.NewTicker(time.Second) // clock + coalesced redraw
 	defer renderTick.Stop()
-	hudTick := time.NewTicker(2 * time.Second)
-	defer hudTick.Stop()
 
+	// HUD goroutine: runs compute() (slow — network/exec) off the event loop.
+	// Sends fresh hud.Deps values to the loop via a buffered channel; the loop
+	// owns deps exclusively (no shared mutable state).
 	refresh := newHUDRefresher()
-	sess.SetDeps(refresh.snapshot())
+	hudDeps := make(chan hud.Deps, 1)
+	go func() {
+		deliver := func() {
+			d := refresh.compute() // may block on network/exec — off the event loop
+			select {
+			case hudDeps <- d:
+			default: // loop busy; drop, next tick retries
+			}
+		}
+		deliver() // initial fetch
+		t := time.NewTicker(2 * time.Second)
+		defer t.Stop()
+		for range t.C {
+			deliver()
+		}
+	}()
+
+	var deps hud.Deps
+	deps.Time = module.Time(time.Now()) // show clock immediately
+	sess.SetDeps(deps)
 	rd.Render(sess.Frame())
 
 	for {
@@ -136,13 +161,15 @@ func run() (err error) {
 				rd.Render(sess.Frame())
 			}
 
-		case <-hudTick.C:
-			refresh.update()
-			sess.SetDeps(refresh.snapshot())
+		case d := <-hudDeps:
+			deps = d
+			sess.SetDeps(deps)
+			rd.Render(sess.Frame())
 
 		case <-renderTick.C:
-			refresh.tickClock()
-			sess.SetDeps(refresh.snapshot())
+			// Update only the clock on the last-known deps; don't clobber fetched values.
+			deps.Time = module.Time(time.Now())
+			sess.SetDeps(deps)
 			rd.Render(sess.Frame())
 		}
 	}
@@ -166,35 +193,25 @@ func pump(r interface{ Read([]byte) (int, error) }, ch chan<- []byte) {
 	}
 }
 
-// hudRefresher computes HUD segment strings off the render path. update() runs
-// the (possibly slow, cached) segment fetches; tickClock refreshes only the
-// clock; snapshot returns the current Deps.
-type hudRefresher struct {
-	deps hud.Deps
-	c    *cache.Cache
-}
+// hudRefresher computes a fresh hud.Deps on demand. compute() may block on
+// network or exec; it is always called from the HUD goroutine, never from the
+// event loop.
+type hudRefresher struct{ c *cache.Cache }
 
-func newHUDRefresher() *hudRefresher {
-	r := &hudRefresher{c: cache.New()}
-	r.tickClock()
-	r.update()
-	return r
-}
+func newHUDRefresher() *hudRefresher { return &hudRefresher{c: cache.New()} }
 
-func (r *hudRefresher) tickClock() { r.deps.Time = module.Time(time.Now()) }
-
-func (r *hudRefresher) update() {
-	r.deps.Time = module.Time(time.Now())
-	r.deps.LocalIP = module.LocalIP(net.Dial)
-	r.deps.ExtIP = module.ExtIP(r.c, module.DefaultExtIPFetch)
-	r.deps.Weather = module.Weather(r.c, module.DefaultWeatherFetch)
+func (r *hudRefresher) compute() hud.Deps {
 	cwd, _ := os.Getwd()
-	r.deps.Git = module.Git(module.DefaultGitRun(cwd))
-	r.deps.Azure = module.Azure(r.c, module.DefaultAzRun)
-	r.deps.K8s = module.K8s(kubeconfigPath())
+	return hud.Deps{
+		Time:    module.Time(time.Now()),
+		LocalIP: module.LocalIP(net.Dial),
+		ExtIP:   module.ExtIP(r.c, module.DefaultExtIPFetch),
+		Weather: module.Weather(r.c, module.DefaultWeatherFetch),
+		Git:     module.Git(module.DefaultGitRun(cwd)),
+		Azure:   module.Azure(r.c, module.DefaultAzRun),
+		K8s:     module.K8s(kubeconfigPath()),
+	}
 }
-
-func (r *hudRefresher) snapshot() hud.Deps { return r.deps }
 
 // kubeconfigPath returns the first $KUBECONFIG entry if set and non-empty,
 // else ~/.kube/config.

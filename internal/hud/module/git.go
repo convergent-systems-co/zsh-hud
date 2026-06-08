@@ -1,9 +1,11 @@
 package module
 
 import (
+	"context"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // RunFunc runs a git subcommand in the working directory and returns trimmed
@@ -37,11 +39,12 @@ func Git(run RunFunc) string {
 	return branch + " +" + strconv.Itoa(n)
 }
 
-// DefaultGitRun runs git in cwd. Callers are responsible for bounding execution
-// time (e.g. context+timeout) before this reaches the render path.
+// DefaultGitRun runs git in cwd with a 3s timeout.
 func DefaultGitRun(cwd string) RunFunc {
 	return func(args ...string) (string, error) {
-		cmd := exec.Command("git", args...)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "git", args...)
 		cmd.Dir = cwd
 		out, err := cmd.Output()
 		return string(out), err

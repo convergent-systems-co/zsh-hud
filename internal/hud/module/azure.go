@@ -1,6 +1,7 @@
 package module
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 	"time"
@@ -25,8 +26,10 @@ func Azure(c *cache.Cache, run AzRunFunc) string {
 	})
 }
 
-// DefaultAzRun execs `az account show --query name -o tsv`.
+// DefaultAzRun execs `az account show --query name -o tsv` with a 3s timeout.
 func DefaultAzRun() (string, error) {
-	out, err := exec.Command("az", "account", "show", "--query", "name", "-o", "tsv").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "az", "account", "show", "--query", "name", "-o", "tsv").Output()
 	return string(out), err
 }
