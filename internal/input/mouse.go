@@ -1,6 +1,9 @@
 package input
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
 
 // Mouse-tracking enable/disable escapes for main to write on startup/shutdown:
 // SGR extended mouse mode (1006) + any-event tracking (1003). Exposed so the
@@ -17,7 +20,7 @@ func mouseButton(params string) int {
 		return -1
 	}
 	rest := params[1:]
-	semi := indexByte(rest, ';')
+	semi := strings.IndexByte(rest, ';')
 	if semi < 0 {
 		return -1
 	}
@@ -30,12 +33,3 @@ func mouseButton(params string) int {
 
 func isWheelUp(params string) bool   { return mouseButton(params) == 64 }
 func isWheelDown(params string) bool { return mouseButton(params) == 65 }
-
-func indexByte(s string, b byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
-}

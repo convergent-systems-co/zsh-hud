@@ -40,6 +40,10 @@ type token struct {
 	params string // CSI parameter bytes between '[' and final (e.g. "5;2", "<64;1;1")
 }
 
+// Invariant: for a non-CSI token, bytes is exactly one byte (a plain byte);
+// for a CSI token, bytes is the full sequence including the leading ESC[.
+// handleCopy/handleNormal rely on tok.bytes[0] being valid for plain tokens.
+
 // nextToken decodes the next token from buf. complete=false means buf holds an
 // incomplete sequence and the caller should wait for more bytes.
 func nextToken(buf []byte) (tok token, consumed int, complete bool) {

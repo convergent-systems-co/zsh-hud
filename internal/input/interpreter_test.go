@@ -120,3 +120,34 @@ func TestCopyModePageScroll(t *testing.T) {
 		t.Fatalf("actions = %v, want [ScrollPageDown]", r.Actions)
 	}
 }
+
+func TestNormalModeEscNonCSIForwarded(t *testing.T) {
+	it := New()
+	// ESC followed by a non-'[' byte: ESC forwarded standalone, then 'x'.
+	r := it.Feed([]byte("\x1bx"))
+	if !bytes.Equal(r.Forward, []byte("\x1bx")) {
+		t.Fatalf("ESC+non-CSI forward = %q, want [ESC x]", r.Forward)
+	}
+	if it.Mode() != ModeNormal {
+		t.Fatal("should remain in normal mode")
+	}
+}
+
+func TestCopyModeWheelScroll(t *testing.T) {
+	it := feedCopy(t)
+	r := it.Feed([]byte("\x1b[<64;1;1M\x1b[<65;1;1M")) // wheel up then down
+	if len(r.Actions) != 2 || r.Actions[0] != ScrollLineUp || r.Actions[1] != ScrollLineDown {
+		t.Fatalf("actions = %v, want [ScrollLineUp ScrollLineDown]", r.Actions)
+	}
+	if len(r.Forward) != 0 {
+		t.Fatalf("copy-mode wheel must not forward; got %q", r.Forward)
+	}
+}
+
+func TestCopyModeShiftPageScroll(t *testing.T) {
+	it := feedCopy(t)
+	r := it.Feed([]byte("\x1b[5;2~\x1b[6;2~")) // Shift+PgUp then Shift+PgDn
+	if len(r.Actions) != 2 || r.Actions[0] != ScrollPageUp || r.Actions[1] != ScrollPageDown {
+		t.Fatalf("actions = %v, want [ScrollPageUp ScrollPageDown]", r.Actions)
+	}
+}
