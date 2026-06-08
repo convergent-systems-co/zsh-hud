@@ -1,6 +1,7 @@
 package module
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -57,6 +58,9 @@ func httpGetString(url, userAgent string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("http %d", resp.StatusCode)
+	}
 	var b strings.Builder
 	if _, err := copyMax(&b, resp.Body, 4096); err != nil {
 		return "", err

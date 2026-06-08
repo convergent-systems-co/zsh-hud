@@ -37,8 +37,8 @@ func Git(run RunFunc) string {
 	return branch + " +" + strconv.Itoa(n)
 }
 
-// DefaultGitRun runs git in cwd with a short timeout-bounded context handled by
-// the caller; here it execs directly. Returns "" trimmed stdout.
+// DefaultGitRun runs git in cwd. Callers are responsible for bounding execution
+// time (e.g. context+timeout) before this reaches the render path.
 func DefaultGitRun(cwd string) RunFunc {
 	return func(args ...string) (string, error) {
 		cmd := exec.Command("git", args...)
