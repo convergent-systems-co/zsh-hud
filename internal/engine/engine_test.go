@@ -24,3 +24,49 @@ func TestEngineReadsBackPlainText(t *testing.T) {
 		t.Fatalf("row 0 = %q, want %q", string(got), "Hello, world!")
 	}
 }
+
+func TestEngineCursorAdvances(t *testing.T) {
+	e, err := New(24, 80, 1000)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer e.Close()
+
+	e.Write([]byte("abc"))
+	row, col := e.CursorPos()
+	if row != 0 || col != 3 {
+		t.Fatalf("cursor = (%d,%d), want (0,3)", row, col)
+	}
+}
+
+func TestEngineParsesColor(t *testing.T) {
+	e, err := New(24, 80, 1000)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer e.Close()
+
+	// SGR 32 = indexed green (palette index 2).
+	e.Write([]byte("\x1b[32mX"))
+	c := e.Cell(0, 0)
+	if c.Rune != 'X' {
+		t.Fatalf("rune = %q, want X", c.Rune)
+	}
+	if !c.FG.IsIndexed || c.FG.Index != 2 {
+		t.Fatalf("fg = %+v, want indexed 2", c.FG)
+	}
+}
+
+func TestEngineResizeChangesGrid(t *testing.T) {
+	e, err := New(24, 80, 1000)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer e.Close()
+
+	e.Resize(10, 40)
+	r, c := e.Size()
+	if r != 10 || c != 40 {
+		t.Fatalf("size = (%d,%d), want (10,40)", r, c)
+	}
+}
