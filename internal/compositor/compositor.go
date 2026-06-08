@@ -55,6 +55,10 @@ func Compose(rows, cols int, src GridSource, scrollOffset int, topBar, bottomBar
 		}
 	}
 
+	// Map the engine cursor into the middle region (offset by the top bar).
+	// Precondition: main keeps the engine sized to the middle (rows-2), so
+	// cr is in [0, midHeight); an out-of-range cr would point at/below the
+	// bottom bar (Frame.Set clamps, but CursorRow would be wrong).
 	if scrollOffset == 0 {
 		cr, cc := src.CursorPos()
 		f.CursorRow = 1 + cr

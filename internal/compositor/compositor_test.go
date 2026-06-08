@@ -151,3 +151,21 @@ func TestComposeZeroRows(t *testing.T) {
 		t.Fatalf("rows = %d, want 0", f.Rows)
 	}
 }
+
+func TestComposeMidHeightExceedsScreenRows(t *testing.T) {
+	// Engine screen is only 2 rows; middle is 5 rows tall, no scrollback.
+	// Rows beyond the screen must be blank, not panic.
+	g := &fakeGrid{rows: 2, cols: 3, screen: []string{"R0", "R1"}}
+	f := Compose(7, 3, g, 0, mkCells("T"), mkCells("B")) // 7 rows => midHeight 5
+	if got := midRow(f, 1, 3); got != "R0 " {
+		t.Fatalf("mid row 0 = %q, want 'R0 '", got)
+	}
+	if got := midRow(f, 2, 3); got != "R1 " {
+		t.Fatalf("mid row 1 = %q, want 'R1 '", got)
+	}
+	for _, fr := range []int{3, 4, 5} {
+		if got := midRow(f, fr, 3); got != "   " {
+			t.Fatalf("frame row %d should be blank (beyond screen), got %q", fr, got)
+		}
+	}
+}
