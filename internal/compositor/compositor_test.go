@@ -69,3 +69,49 @@ func TestComposeLiveViewPlacesBarsAndScreen(t *testing.T) {
 		t.Fatalf("cursor = (%d,%d) shown=%v, want (2,2) true", f.CursorRow, f.CursorCol, f.CursorShown)
 	}
 }
+
+func TestComposeScrollbackOffset(t *testing.T) {
+	g := &fakeGrid{
+		rows: 3, cols: 4,
+		screen: []string{"L0", "L1", "L2"},
+		sb:     []string{"s0", "s1", "s2", "s3", "s4"},
+		curRow: 2, curCol: 0,
+	}
+	// 5-row screen => midHeight 3, scrollOffset 2: virtual i=0,1,2 = 3,4,5 => s3,s4,L0
+	f := Compose(5, 4, g, 2, mkCells("T"), mkCells("B"))
+	if got := midRow(f, 1, 4); got != "s3  " {
+		t.Fatalf("mid row 0 = %q, want 's3  '", got)
+	}
+	if got := midRow(f, 2, 4); got != "s4  " {
+		t.Fatalf("mid row 1 = %q, want 's4  '", got)
+	}
+	if got := midRow(f, 3, 4); got != "L0  " {
+		t.Fatalf("mid row 2 = %q, want 'L0  '", got)
+	}
+	if f.CursorShown {
+		t.Fatal("cursor should be hidden when scrolled back")
+	}
+}
+
+func TestComposeScrollOffsetClampedToScrollbackLen(t *testing.T) {
+	g := &fakeGrid{rows: 2, cols: 3, screen: []string{"L0", "L1"}, sb: []string{"a", "b"}, curRow: 0, curCol: 0}
+	// 4-row screen => midHeight 2; scrollOffset 99 clamps to 2: virtual 0,1 => a,b
+	f := Compose(4, 3, g, 99, mkCells("T"), mkCells("B"))
+	if got := midRow(f, 1, 3); got != "a  " {
+		t.Fatalf("mid row 0 = %q, want 'a  '", got)
+	}
+	if got := midRow(f, 2, 3); got != "b  " {
+		t.Fatalf("mid row 1 = %q, want 'b  '", got)
+	}
+}
+
+func TestComposeNegativeOffsetTreatedAsLive(t *testing.T) {
+	g := &fakeGrid{rows: 2, cols: 2, screen: []string{"L0", "L1"}, curRow: 0, curCol: 1}
+	f := Compose(4, 2, g, -5, mkCells("T"), mkCells("B"))
+	if got := midRow(f, 1, 2); got != "L0" {
+		t.Fatalf("mid row 0 = %q, want 'L0'", got)
+	}
+	if !f.CursorShown || f.CursorRow != 1 || f.CursorCol != 1 {
+		t.Fatalf("cursor = (%d,%d) shown=%v, want (1,1) true", f.CursorRow, f.CursorCol, f.CursorShown)
+	}
+}
