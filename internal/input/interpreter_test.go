@@ -52,3 +52,71 @@ func TestUnrecognizedCSIForwardedInNormalMode(t *testing.T) {
 		t.Fatalf("unrecognized CSI forward = %q, want verbatim", r.Forward)
 	}
 }
+
+func feedCopy(t *testing.T) *Interpreter {
+	t.Helper()
+	it := New()
+	it.Feed([]byte("\x1b[5;2~")) // enter copy mode
+	if it.Mode() != ModeCopy {
+		t.Fatal("setup: expected copy mode")
+	}
+	return it
+}
+
+func TestCopyModeMotionKeys(t *testing.T) {
+	it := feedCopy(t)
+	r := it.Feed([]byte("jjkl")) // down down up right (vim keys)
+	want := []Action{CopyMoveDown, CopyMoveDown, CopyMoveUp, CopyMoveRight}
+	if len(r.Actions) != len(want) {
+		t.Fatalf("actions = %v, want %v", r.Actions, want)
+	}
+	for i := range want {
+		if r.Actions[i] != want[i] {
+			t.Fatalf("action[%d] = %v, want %v", i, r.Actions[i], want[i])
+		}
+	}
+	if len(r.Forward) != 0 {
+		t.Fatalf("copy mode must capture, not forward; got %q", r.Forward)
+	}
+}
+
+func TestCopyModeArrowKeys(t *testing.T) {
+	it := feedCopy(t)
+	r := it.Feed([]byte("\x1b[A\x1b[B\x1b[C\x1b[D")) // up down right left
+	want := []Action{CopyMoveUp, CopyMoveDown, CopyMoveRight, CopyMoveLeft}
+	for i := range want {
+		if r.Actions[i] != want[i] {
+			t.Fatalf("arrow action[%d] = %v, want %v", i, r.Actions[i], want[i])
+		}
+	}
+}
+
+func TestCopyModeSelectAndYank(t *testing.T) {
+	it := feedCopy(t)
+	r := it.Feed([]byte("vy")) // toggle select, yank
+	if len(r.Actions) != 3 || r.Actions[0] != CopyToggleSelect || r.Actions[1] != CopyYank || r.Actions[2] != ExitCopyMode {
+		t.Fatalf("actions = %v, want [CopyToggleSelect CopyYank ExitCopyMode]", r.Actions)
+	}
+	if it.Mode() != ModeNormal {
+		t.Fatal("yank should return to normal mode")
+	}
+}
+
+func TestCopyModeQuitExits(t *testing.T) {
+	it := feedCopy(t)
+	r := it.Feed([]byte("q"))
+	if len(r.Actions) != 1 || r.Actions[0] != ExitCopyMode {
+		t.Fatalf("actions = %v, want [ExitCopyMode]", r.Actions)
+	}
+	if it.Mode() != ModeNormal {
+		t.Fatal("q should exit copy mode")
+	}
+}
+
+func TestCopyModePageScroll(t *testing.T) {
+	it := feedCopy(t)
+	r := it.Feed([]byte("\x1b[6~")) // PageDown
+	if len(r.Actions) != 1 || r.Actions[0] != ScrollPageDown {
+		t.Fatalf("actions = %v, want [ScrollPageDown]", r.Actions)
+	}
+}

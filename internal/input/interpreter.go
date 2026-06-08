@@ -94,5 +94,46 @@ func (it *Interpreter) handleNormal(tok token, res *Result) {
 	res.Forward = append(res.Forward, tok.bytes...) // plain byte: forward
 }
 
-// TEMP: real implementation lands in Task 3 (handleCopy).
-func (it *Interpreter) handleCopy(tok token, res *Result) { /* Task 3 */ }
+func (it *Interpreter) handleCopy(tok token, res *Result) {
+	if tok.csi {
+		switch {
+		case tok.final == 'A':
+			res.Actions = append(res.Actions, CopyMoveUp)
+		case tok.final == 'B':
+			res.Actions = append(res.Actions, CopyMoveDown)
+		case tok.final == 'C':
+			res.Actions = append(res.Actions, CopyMoveRight)
+		case tok.final == 'D':
+			res.Actions = append(res.Actions, CopyMoveLeft)
+		case tok.final == '~' && (tok.params == "5" || tok.params == "5;2"): // PageUp / Shift+PageUp
+			res.Actions = append(res.Actions, ScrollPageUp)
+		case tok.final == '~' && (tok.params == "6" || tok.params == "6;2"): // PageDown / Shift+PageDown
+			res.Actions = append(res.Actions, ScrollPageDown)
+		case tok.final == 'M' && isWheelUp(tok.params):
+			res.Actions = append(res.Actions, ScrollLineUp)
+		case tok.final == 'M' && isWheelDown(tok.params):
+			res.Actions = append(res.Actions, ScrollLineDown)
+		}
+		return // all other CSI in copy mode: ignored (captured)
+	}
+	// plain byte commands
+	switch tok.bytes[0] {
+	case 'k':
+		res.Actions = append(res.Actions, CopyMoveUp)
+	case 'j':
+		res.Actions = append(res.Actions, CopyMoveDown)
+	case 'h':
+		res.Actions = append(res.Actions, CopyMoveLeft)
+	case 'l':
+		res.Actions = append(res.Actions, CopyMoveRight)
+	case 'v', ' ':
+		res.Actions = append(res.Actions, CopyToggleSelect)
+	case 'y', '\r':
+		res.Actions = append(res.Actions, CopyYank, ExitCopyMode)
+		it.mode = ModeNormal
+	case 'q', esc:
+		res.Actions = append(res.Actions, ExitCopyMode)
+		it.mode = ModeNormal
+	}
+	// any other byte in copy mode: ignored (captured, not forwarded)
+}
