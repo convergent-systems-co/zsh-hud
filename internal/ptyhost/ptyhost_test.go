@@ -2,7 +2,9 @@ package ptyhost
 
 import (
 	"bytes"
+	"errors"
 	"io"
+	"os/exec"
 	"testing"
 	"time"
 )
@@ -121,5 +123,34 @@ func TestPtyHostResize(t *testing.T) {
 	}
 	if rows != 30 || cols != 100 {
 		t.Fatalf("Size after resize = (%d,%d), want (30,100)", rows, cols)
+	}
+}
+
+func TestPtyHostWaitReturnsExitCode(t *testing.T) {
+	p, err := Start("/bin/sh", []string{"-c", "exit 7"}, 24, 80)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer p.Close()
+
+	err = p.Wait()
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) {
+		t.Fatalf("Wait err = %v, want *exec.ExitError", err)
+	}
+	if ee.ExitCode() != 7 {
+		t.Fatalf("exit code = %d, want 7", ee.ExitCode())
+	}
+}
+
+func TestPtyHostWaitSucceedsOnCleanExit(t *testing.T) {
+	p, err := Start("/bin/sh", []string{"-c", "exit 0"}, 24, 80)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer p.Close()
+
+	if err := p.Wait(); err != nil {
+		t.Fatalf("Wait on clean exit = %v, want nil", err)
 	}
 }

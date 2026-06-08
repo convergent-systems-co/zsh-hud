@@ -181,6 +181,11 @@ func (p *PtyHost) Size() (rows, cols int, err error) {
 	return int(ws.Rows), int(ws.Cols), nil
 }
 
+// Wait blocks until the child process exits and returns its exit status. A
+// non-zero exit is reported as *exec.ExitError (use errors.As). Call Wait
+// exactly once.
+func (p *PtyHost) Wait() error { return p.cmd.Wait() }
+
 // Close closes the pty master and signals readLoop to stop. Idempotent: safe
 // to call more than once; only the first call has effect. Callers should still
 // Wait on the child process to reap it.
