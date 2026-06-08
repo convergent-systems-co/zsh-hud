@@ -83,7 +83,9 @@ func TestEngineScrollbackFillsOnOverflow(t *testing.T) {
 	}
 	defer e.Close()
 
-	e.Write([]byte("L0\r\nL1\r\nL2\r\nL3\r\nL4\r\n"))
+	if _, err := e.Write([]byte("L0\r\nL1\r\nL2\r\nL3\r\nL4\r\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
 
 	if e.ScrollbackLen() < 2 {
 		t.Fatalf("scrollback len = %d, want >= 2", e.ScrollbackLen())

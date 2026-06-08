@@ -12,6 +12,7 @@ extern int goSBPopline(int cols, VTermScreenCell *cells, void *user);
 
 // C trampolines: libvterm calls these; they forward to the Go side.
 static int cSBPushline(int cols, const VTermScreenCell *cells, void *user) {
+	// Cast is safe: goSBPushline only reads cells; it never writes through this pointer.
 	return goSBPushline(cols, (VTermScreenCell *)cells, user);
 }
 static int cSBPopline(int cols, VTermScreenCell *cells, void *user) {

@@ -110,6 +110,9 @@ func (e *Engine) ScrollbackLine(n int) []Cell { return e.sb.line(n) }
 
 // Close frees the underlying libvterm Terminal and releases the cgo handle.
 func (e *Engine) Close() error {
+	// Delete the handle before freeing libvterm. vterm_free triggers no
+	// scrollback callbacks, but the handle must outlive any possible callback,
+	// so releasing it first is the safe order.
 	if e.handle != 0 {
 		e.handle.Delete()
 		e.handle = 0
