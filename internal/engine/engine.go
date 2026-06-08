@@ -30,6 +30,9 @@ type Engine struct {
 // New creates an engine with a rows x cols grid and a scrollback cap of
 // sbLines lines. Returns an error if libvterm allocation fails.
 func New(rows, cols, sbLines int) (*Engine, error) {
+	if rows < 1 || cols < 1 {
+		return nil, fmt.Errorf("engine: invalid grid size %dx%d (rows and cols must be >= 1)", rows, cols)
+	}
 	vt := C.vterm_new(C.int(rows), C.int(cols))
 	if vt == nil {
 		return nil, fmt.Errorf("engine: vterm_new returned nil")

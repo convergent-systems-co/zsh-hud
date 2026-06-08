@@ -19,15 +19,16 @@ static int cSBPopline(int cols, VTermScreenCell *cells, void *user) {
 	return goSBPopline(cols, cells, user);
 }
 
-// One static callbacks struct; only scrollback hooks are populated.
-static VTermScreenCallbacks sbCallbacks;
+// Process-lifetime singleton; fields are constant function pointers set once at load time, so concurrent New() calls are safe.
+static VTermScreenCallbacks sbCallbacks = {
+	.sb_pushline = cSBPushline,
+	.sb_popline  = cSBPopline,
+};
 
 // registerScrollback accepts the handle as a uintptr_t and reinterprets it as
 // void* entirely within C, bypassing Go's checkptr validation which rejects
 // unsafe.Pointer(uintptr(handle)) when the uintptr is not a real Go pointer.
 static void registerScrollback(VTermScreen *screen, uintptr_t handle) {
-	sbCallbacks.sb_pushline = cSBPushline;
-	sbCallbacks.sb_popline  = cSBPopline;
 	vterm_screen_set_callbacks(screen, &sbCallbacks, (void *)handle);
 }
 

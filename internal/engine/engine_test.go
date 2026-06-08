@@ -96,6 +96,15 @@ func TestEngineScrollbackFillsOnOverflow(t *testing.T) {
 	}
 }
 
+func TestNewRejectsNonPositiveSize(t *testing.T) {
+	if _, err := New(0, 80, 100); err == nil {
+		t.Fatal("New(0,80,...) should error on zero rows")
+	}
+	if _, err := New(24, 0, 100); err == nil {
+		t.Fatal("New(24,0,...) should error on zero cols")
+	}
+}
+
 func lineText(cells []Cell) string {
 	var r []rune
 	for _, c := range cells {
