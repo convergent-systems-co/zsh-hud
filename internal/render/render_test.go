@@ -97,3 +97,42 @@ func TestRendererSizeChangeForcesFullRedraw(t *testing.T) {
 		t.Fatalf("size change should full-redraw (clear); got %q", buf.String())
 	}
 }
+
+func TestRendererDiffHandlesTwoSeparateRuns(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewRenderer(&buf)
+
+	f1 := NewFrame(1, 5)
+	putText(f1, 0, 0, "abcde")
+	if err := r.Render(f1); err != nil {
+		t.Fatalf("Render f1: %v", err)
+	}
+
+	// Change col 1 ('b'->'B') and col 3 ('d'->'D'); col 2 ('c') stays.
+	buf.Reset()
+	f2 := NewFrame(1, 5)
+	putText(f2, 0, 0, "aBcDe")
+	if err := r.Render(f2); err != nil {
+		t.Fatalf("Render f2: %v", err)
+	}
+	out := buf.String()
+
+	// Two separate runs → repositions to col 1 and col 3.
+	if !strings.Contains(out, cursorTo(0, 1)) {
+		t.Fatalf("expected reposition to (0,1); got %q", out)
+	}
+	if !strings.Contains(out, cursorTo(0, 3)) {
+		t.Fatalf("expected reposition to (0,3); got %q", out)
+	}
+	// Both changed glyphs present; the unchanged 'c' between them is NOT re-emitted.
+	if !strings.Contains(out, "B") || !strings.Contains(out, "D") {
+		t.Fatalf("expected changed glyphs B and D; got %q", out)
+	}
+	if strings.Contains(out, "c") {
+		t.Fatalf("unchanged 'c' should not be re-emitted; got %q", out)
+	}
+	// Unchanged 'a' and 'e' likewise not re-emitted.
+	if strings.Contains(out, "a") || strings.Contains(out, "e") {
+		t.Fatalf("unchanged edge glyphs should not be re-emitted; got %q", out)
+	}
+}

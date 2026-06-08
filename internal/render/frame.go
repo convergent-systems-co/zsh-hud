@@ -5,10 +5,12 @@ import "terminal-hud/internal/engine"
 // Frame is a composited screen: a row-major grid of cells plus the cursor the
 // terminal should show after drawing. Cell (0,0) is top-left.
 type Frame struct {
-	Rows, Cols  int
-	cells       []engine.Cell // len == Rows*Cols, row-major
-	CursorRow   int
-	CursorCol   int
+	Rows, Cols int
+	cells      []engine.Cell // len == Rows*Cols, row-major
+	CursorRow  int
+	CursorCol  int
+	// CursorShown is reserved for the compositor/main; the renderer does not yet
+	// emit cursor-visibility escapes (\x1b[?25h / \x1b[?25l).
 	CursorShown bool
 }
 
