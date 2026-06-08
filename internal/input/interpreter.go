@@ -94,6 +94,5 @@ func (it *Interpreter) handleNormal(tok token, res *Result) {
 	res.Forward = append(res.Forward, tok.bytes...) // plain byte: forward
 }
 
-// TEMP: real implementations land in Tasks 2 (isWheelUp) and 3 (handleCopy).
-func isWheelUp(string) bool                               { return false }
+// TEMP: real implementation lands in Task 3 (handleCopy).
 func (it *Interpreter) handleCopy(tok token, res *Result) { /* Task 3 */ }
