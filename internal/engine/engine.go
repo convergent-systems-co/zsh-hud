@@ -15,12 +15,6 @@ import (
 	"runtime/cgo"
 )
 
-// scrollback is a placeholder until Task 4 provides the real ring buffer.
-// TEMP: replaced by scrollback.go in the next task.
-type scrollback struct{}
-
-func newScrollback(int) *scrollback { return &scrollback{} }
-
 // Engine wraps a libvterm Terminal + Screen and a scrollback ring buffer.
 // Not safe for concurrent use; the owner must serialize calls (the event loop
 // does this).
