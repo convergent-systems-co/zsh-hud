@@ -30,6 +30,9 @@ type PtyHost struct {
 	// dedicated goroutine and implement SetReadDeadline via select + timer.
 	readCh chan chunk
 
+	done      chan struct{} // closed once by Close; signals readLoop to stop
+	closeOnce sync.Once     // guards master.Close + done close
+
 	// pending holds leftover bytes from the last chunk that were not fully
 	// consumed by a Read call.
 	pendingMu sync.Mutex
@@ -59,13 +62,15 @@ func Start(name string, args []string, rows, cols int) (*PtyHost, error) {
 		master: master,
 		cmd:    cmd,
 		readCh: make(chan chunk, 16),
+		done:   make(chan struct{}),
 	}
 	go p.readLoop()
 	return p, nil
 }
 
 // readLoop runs in a dedicated goroutine, reading from the pty master and
-// forwarding chunks to readCh. It exits when the master is closed (EIO / EOF).
+// forwarding chunks to readCh. It exits when the master is closed (EIO / EOF)
+// or when done is closed by Close, whichever comes first.
 func (p *PtyHost) readLoop() {
 	buf := make([]byte, 4096)
 	for {
@@ -73,10 +78,18 @@ func (p *PtyHost) readLoop() {
 		if n > 0 {
 			cp := make([]byte, n)
 			copy(cp, buf[:n])
-			p.readCh <- chunk{data: cp}
+			select {
+			case p.readCh <- chunk{data: cp}:
+			case <-p.done:
+				return
+			}
 		}
 		if err != nil {
-			p.readCh <- chunk{err: err}
+			select {
+			case p.readCh <- chunk{err: err}:
+			case <-p.done:
+			}
+			close(p.readCh) // no more data will ever arrive
 			return
 		}
 	}
@@ -106,7 +119,9 @@ func (p *PtyHost) Read(b []byte) (int, error) {
 		if d <= 0 {
 			return 0, os.ErrDeadlineExceeded
 		}
-		timer = time.After(d)
+		tm := time.NewTimer(d)
+		defer tm.Stop()
+		timer = tm.C
 	}
 
 	select {
@@ -144,7 +159,14 @@ func (p *PtyHost) SetReadDeadline(t time.Time) error {
 	return nil
 }
 
-// Close closes the pty master. This sends EOF to the child's stdin; if the
-// child is still running it will typically exit. Callers should still Wait to
-// reap the process.
-func (p *PtyHost) Close() error { return p.master.Close() }
+// Close closes the pty master and signals readLoop to stop. Idempotent: safe
+// to call more than once; only the first call has effect. Callers should still
+// Wait on the child process to reap it.
+func (p *PtyHost) Close() error {
+	var err error
+	p.closeOnce.Do(func() {
+		err = p.master.Close()
+		close(p.done)
+	})
+	return err
+}
