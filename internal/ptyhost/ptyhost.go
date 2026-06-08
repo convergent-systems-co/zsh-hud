@@ -159,6 +159,28 @@ func (p *PtyHost) SetReadDeadline(t time.Time) error {
 	return nil
 }
 
+// Resize sets the pty window size to rows x cols. The kernel delivers SIGWINCH
+// to the child.
+func (p *PtyHost) Resize(rows, cols int) error {
+	if rows < 1 || cols < 1 {
+		return fmt.Errorf("ptyhost: invalid size %dx%d", rows, cols)
+	}
+	ws := &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)}
+	if err := pty.Setsize(p.master, ws); err != nil {
+		return fmt.Errorf("ptyhost: resize: %w", err)
+	}
+	return nil
+}
+
+// Size reports the current pty window size.
+func (p *PtyHost) Size() (rows, cols int, err error) {
+	ws, err := pty.GetsizeFull(p.master)
+	if err != nil {
+		return 0, 0, fmt.Errorf("ptyhost: getsize: %w", err)
+	}
+	return int(ws.Rows), int(ws.Cols), nil
+}
+
 // Close closes the pty master and signals readLoop to stop. Idempotent: safe
 // to call more than once; only the first call has effect. Callers should still
 // Wait on the child process to reap it.

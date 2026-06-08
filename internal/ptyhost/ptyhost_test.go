@@ -103,3 +103,23 @@ func TestPtyHostDoubleCloseIsSafe(t *testing.T) {
 	// Must not panic; second close returns either nil or an error, both fine.
 	_ = p.Close()
 }
+
+func TestPtyHostResize(t *testing.T) {
+	// `sleep 5` keeps the slave open so the size query is meaningful.
+	p, err := Start("/bin/sleep", []string{"5"}, 24, 80)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer p.Close()
+
+	if err := p.Resize(30, 100); err != nil {
+		t.Fatalf("Resize: %v", err)
+	}
+	rows, cols, err := p.Size()
+	if err != nil {
+		t.Fatalf("Size: %v", err)
+	}
+	if rows != 30 || cols != 100 {
+		t.Fatalf("Size after resize = (%d,%d), want (30,100)", rows, cols)
+	}
+}
