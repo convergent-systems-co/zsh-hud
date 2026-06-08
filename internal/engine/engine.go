@@ -44,6 +44,7 @@ func New(rows, cols, sbLines int) (*Engine, error) {
 	C.vterm_screen_enable_altscreen(screen, 1)
 
 	e := &Engine{vt: vt, screen: screen, rows: rows, cols: cols, sb: newScrollback(sbLines)}
+	registerScrollbackCallbacks(e)
 	return e, nil
 }
 
@@ -99,6 +100,13 @@ func (e *Engine) Resize(rows, cols int) {
 	C.vterm_set_size(e.vt, C.int(rows), C.int(cols))
 	e.rows, e.cols = rows, cols
 }
+
+// ScrollbackLen returns the number of lines currently held in scrollback.
+func (e *Engine) ScrollbackLen() int { return e.sb.len() }
+
+// ScrollbackLine returns the n-th line back from the screen (0 = newest
+// scrolled-off line). Out-of-range returns nil.
+func (e *Engine) ScrollbackLine(n int) []Cell { return e.sb.line(n) }
 
 // Close frees the underlying libvterm Terminal and releases the cgo handle.
 func (e *Engine) Close() error {

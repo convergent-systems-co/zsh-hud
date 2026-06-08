@@ -74,3 +74,32 @@ func TestEngineResizeChangesGrid(t *testing.T) {
 		t.Fatalf("size = (%d,%d), want (10,40)", r, c)
 	}
 }
+
+func TestEngineScrollbackFillsOnOverflow(t *testing.T) {
+	// 3-row grid; writing 5 newline-separated lines pushes 2 off the top.
+	e, err := New(3, 80, 1000)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer e.Close()
+
+	e.Write([]byte("L0\r\nL1\r\nL2\r\nL3\r\nL4\r\n"))
+
+	if e.ScrollbackLen() < 2 {
+		t.Fatalf("scrollback len = %d, want >= 2", e.ScrollbackLen())
+	}
+	top := lineText(e.ScrollbackLine(0))
+	if top != "L1" && top != "L2" {
+		t.Fatalf("scrollback line(0) = %q, want a scrolled-off line", top)
+	}
+}
+
+func lineText(cells []Cell) string {
+	var r []rune
+	for _, c := range cells {
+		if c.Rune != 0 {
+			r = append(r, c.Rune)
+		}
+	}
+	return string(r)
+}
